@@ -1,0 +1,17 @@
+language: java
+jdk:
+- openjdk8
+deploy:
+  provider: releases
+  api_key:
+    secure: 
+  file_glob: true
+  file: "$TRAVIS_BUILD_DIR/target/RideOn*.jar"
+  skip_cleanup: true
+  on:
+    repo: kubotan/RideOn
+    tags: true
+notifications:
+  email:
+    on_success: never
+    on_failure: change

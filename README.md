@@ -5,7 +5,7 @@
 [![contributions welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg?style=flat)](https://github.com/kubotan/RideOn/issues)
 [![License: LGPL v3](https://img.shields.io/badge/License-LGPL%20v3-blue.svg)](https://github.com/kubotan/RideOn/blob/master/LICENSE)
 
-RideOn plugin.
+RideOn plugin for minecraft.
 
 # Installation method
 Please put jar in the plugins folder.   

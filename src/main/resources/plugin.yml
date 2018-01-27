@@ -1,0 +1,11 @@
+name: RideOn
+version: 1.0
+description: RideOn
+author: kubotan
+website: http://about.gorogoro.space/
+
+main: space.gorogoro.rideon.RideOn
+
+commands:
+  rideon:
+    usage: /<command> 肩車機能をON/OFFします。

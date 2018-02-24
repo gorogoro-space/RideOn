@@ -9,6 +9,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 
 import org.bukkit.Bukkit;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.Sound;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
@@ -47,30 +48,22 @@ public class RideOn extends JavaPlugin implements Listener {
             Statement stmt = con.createStatement();
             stmt.setQueryTimeout(30);    // タイムアウト設定
           
-            // テーブルの実在チェック
-            Boolean existsUserTable = false;
-            ResultSet rs = stmt.executeQuery("select count(*) from sqlite_master where type='table' and name='disablerideon'");
-            while (rs.next()) {
-                if(rs.getString(1).equals("1")){
-                    existsUserTable = true;
-                }
-            }
-            rs.close();
-
-            // テーブルが無かった場合
-            if(!existsUserTable){
-                //テーブル作成
-                stmt.executeUpdate("create table disablerideon ("
-                    + "id integer primary key autoincrement,"
-                    + "uuid string not null,"
-                    + "playername string not null);"
-                );
-
-                //インデックス作成
-                stmt.executeUpdate("create index disablerideon on rideon (uuid);");
-            }
+            //テーブル作成
+            stmt.executeUpdate("create table if not exists disablerideon ("
+              + "id integer primary key autoincrement,"
+              + "uuid string not null,"
+              + "playername string not null);"
+            );
+            stmt.executeUpdate("create index if not exists disablerideon_idx on disablerideon (uuid);");
+            stmt.executeUpdate("create table if not exists denyrideon ("
+              + "id integer primary key autoincrement,"
+             + "uuid string not null,"
+              + "playername string not null,"
+              + "owner_uuid string not null,"
+              + "owner_playername string not null);"
+            );
+            stmt.executeUpdate("create index if not exists denyrideon_idx on denyrideon (uuid,owner_uuid);");
             stmt.close();
-
         } catch (SQLException e) {
             Bukkit.getLogger().info(e.getMessage());
         } catch (Exception e){
@@ -87,18 +80,30 @@ public class RideOn extends JavaPlugin implements Listener {
                 Player target = (Player) event.getRightClicked();
                 
                 // 無効化情報を取得
-                Integer rideOnId = null;
+                Integer disableRideOnId = null;
                 PreparedStatement prepStmt1 = con.prepareStatement("select id from disablerideon where uuid=?");
                 prepStmt1.setString(1, target.getPlayer().getUniqueId().toString());
                 ResultSet rs = prepStmt1.executeQuery();
                 while (rs.next()) {
-                  rideOnId = rs.getInt(1);
+                  disableRideOnId = rs.getInt(1);
                 }
                 rs.close();
                 prepStmt1.close();
+
+                // 無効化情報を取得
+                Integer denyRideOnId = null;
+                PreparedStatement prepStmt2 = con.prepareStatement("select id from denyrideon where uuid=? and owner_uuid=?");
+                prepStmt2.setString(1, clicker.getPlayer().getUniqueId().toString());
+                prepStmt2.setString(2, target.getPlayer().getUniqueId().toString());
+                ResultSet rs2 = prepStmt2.executeQuery();
+                while (rs2.next()) {
+                  denyRideOnId = rs2.getInt(1);
+                }
+                rs2.close();
+                prepStmt2.close();
     
                 // 無効中のユーザーでなければ
-                if(rideOnId == null) {
+                if(disableRideOnId == null && denyRideOnId == null) {
                     // クリックされた人に乗車
                     target.addPassenger(clicker);
                 }
@@ -143,44 +148,101 @@ public class RideOn extends JavaPlugin implements Listener {
         if((sender instanceof Player)) {
           Player sp = (Player)sender;
           if ( command.getName().equals("rideon") ) {
-              // 実在チェック
-              Integer rideOnId = null;
-              String uuid = sp.getPlayer().getUniqueId().toString();
-              String playername = sp.getPlayer().getName();
-              PreparedStatement prepStmt1 = con.prepareStatement("select id from disablerideon where uuid=?");
-              prepStmt1.setString(1, uuid);
-              ResultSet rs = prepStmt1.executeQuery();
-              while (rs.next()) {
-                rideOnId = rs.getInt(1);
-              }
-              rs.close();
-              prepStmt1.close();
+            // 実在チェック
+            Integer disableRideOnId = null;
+            String uuid = sp.getPlayer().getUniqueId().toString();
+            String playername = sp.getPlayer().getName();
+            PreparedStatement prepStmt1 = con.prepareStatement("select id from disablerideon where uuid=?");
+            prepStmt1.setString(1, uuid);
+            ResultSet rs = prepStmt1.executeQuery();
+            while (rs.next()) {
+              disableRideOnId = rs.getInt(1);
+            }
+            rs.close();
+            prepStmt1.close();
               
-              if(rideOnId == null) {
-                  PreparedStatement prepStmt2 = con.prepareStatement("insert into disablerideon (uuid,playername) values(?,?)");
-                  prepStmt2.setString(1, uuid);
-                  prepStmt2.setString(2, playername);
-                  prepStmt2.addBatch();
-                  prepStmt2.executeBatch();
-                  con.commit();
-                  prepStmt2.close();
-                  sp.sendMessage("肩車を無効にしました。");
-              } else {
-                  PreparedStatement prepStmt3 = con.prepareStatement("delete from disablerideon where uuid = ?");
-                  prepStmt3.setString(1, uuid);
-                  prepStmt3.addBatch();
-                  prepStmt3.executeBatch();
-                  con.commit();
-                  prepStmt3.close();
-                  sp.sendMessage("肩車を有効にしました。");
+            if(disableRideOnId == null) {
+              PreparedStatement prepStmt2 = con.prepareStatement("insert into disablerideon (uuid,playername) values(?,?)");
+              prepStmt2.setString(1, uuid);
+              prepStmt2.setString(2, playername);
+              prepStmt2.addBatch();
+              prepStmt2.executeBatch();
+              con.commit();
+              prepStmt2.close();
+              sp.sendMessage("肩車を無効にしました。");
+            } else {
+              PreparedStatement prepStmt3 = con.prepareStatement("delete from disablerideon where uuid = ?");
+              prepStmt3.setString(1, uuid);
+              prepStmt3.addBatch();
+              prepStmt3.executeBatch();
+              con.commit();
+              prepStmt3.close();
+              sp.sendMessage("肩車を有効にしました。");
+            }
+          }else if ( command.getName().equals("rideondeny") ) {
+            if(args.length != 1){
+              sp.sendMessage("プレイヤー名を指定してください。");
+              return true;
+            }
+
+            // ターゲットプレイヤーを取得する
+            OfflinePlayer tp = null;
+            for ( OfflinePlayer player : Bukkit.getOfflinePlayers() ) {
+              if ( player.getName().equals(args[0]) ) {
+                tp = player;
+                break;
               }
             }
+            if(tp == null){
+              sp.sendMessage("["+args[0]+"] not found.");
+              sp.sendMessage("ターゲット未確認");
+              return true;
+            }
+
+            // 実在チェック
+            Integer denyRideOnId = null;
+            String uuid = tp.getPlayer().getUniqueId().toString();
+            String playername = tp.getPlayer().getName();
+            String ownerUuid = sp.getPlayer().getUniqueId().toString();
+            String ownerPlayername = sp.getPlayer().getName();
+            PreparedStatement prepStmt1 = con.prepareStatement("select id from denyrideon where uuid=? and owner_uuid=?");
+            prepStmt1.setString(1, uuid);
+            prepStmt1.setString(2, ownerUuid);
+            ResultSet rs = prepStmt1.executeQuery();
+            while (rs.next()) {
+              denyRideOnId = rs.getInt(1);
+            }
+            rs.close();
+            prepStmt1.close();
+              
+            if(denyRideOnId == null) {
+              PreparedStatement prepStmt2 = con.prepareStatement("insert into denyrideon (uuid,playername,owner_uuid,owner_playername) values(?,?,?,?)");
+              prepStmt2.setString(1, uuid);
+              prepStmt2.setString(2, playername);
+              prepStmt2.setString(3, ownerUuid);
+              prepStmt2.setString(4, ownerPlayername);
+              prepStmt2.addBatch();
+              prepStmt2.executeBatch();
+              con.commit();
+              prepStmt2.close();
+              sp.sendMessage(args[0] + "をブラックリストに追加しました。");
+            } else {
+              PreparedStatement prepStmt3 = con.prepareStatement("delete from denyrideon where uuid = ? and owner_uuid = ?");
+              prepStmt3.setString(1, uuid);
+              prepStmt3.setString(2, ownerUuid);
+              prepStmt3.addBatch();
+              prepStmt3.executeBatch();
+              con.commit();
+              prepStmt3.close();
+              sp.sendMessage(args[0] + "をブラックリストから削除しました。");
+            }
           }
-        } catch (SQLException e) {
-            Bukkit.getLogger().info(e.getMessage());
-        } catch (Exception e){
-            Bukkit.getLogger().info(e.getMessage());
         }
+      } catch (SQLException e) {
+        Bukkit.getLogger().info(e.getMessage());
+      } catch (Exception e){
+        Bukkit.getLogger().info(e.getMessage());
+      }
       return true;
     }
 

@@ -7,12 +7,14 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.List;
 
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.Sound;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -23,23 +25,23 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.util.Vector;
 
 public class RideOn extends JavaPlugin implements Listener {
-    
+
     private Connection con;
-    
+
     public void onEnable() {
         try{
             getServer().getPluginManager().registerEvents(this, this);
             Bukkit.getLogger().info("The Plugin Has Been Enabled!");
-            
+
             // 設定ファイルが無ければ作成します
             File configFile = new File(this.getDataFolder() + "/config.yml");
             if(!configFile.exists()){
                 saveDefaultConfig();
             }
-            
+
             // JDBCドライバーの指定
             Class.forName("org.sqlite.JDBC");
-          
+
             // データベースに接続する なければ作成される
             con = DriverManager.getConnection("jdbc:sqlite:" + this.getDataFolder() + "/rideon.db");
             con.setAutoCommit(false);      // auto commit無効
@@ -47,7 +49,7 @@ public class RideOn extends JavaPlugin implements Listener {
             // Statementオブジェクト作成
             Statement stmt = con.createStatement();
             stmt.setQueryTimeout(30);    // タイムアウト設定
-          
+
             //テーブル作成
             stmt.executeUpdate("create table if not exists disablerideon ("
               + "id integer primary key autoincrement,"
@@ -70,7 +72,7 @@ public class RideOn extends JavaPlugin implements Listener {
             Bukkit.getLogger().info(e.getMessage());
         }
     }
-    
+
     // エンティティを右クリック(左クリック)したとき
     @EventHandler
     public void onPlayerInteractEntity(PlayerInteractEntityEvent event) {
@@ -78,7 +80,7 @@ public class RideOn extends JavaPlugin implements Listener {
             Player clicker = event.getPlayer();
             if (event.getRightClicked() instanceof Player) {
                 Player target = (Player) event.getRightClicked();
-                
+
                 // 無効化情報を取得
                 Integer disableRideOnId = null;
                 PreparedStatement prepStmt1 = con.prepareStatement("select id from disablerideon where uuid=?");
@@ -101,11 +103,23 @@ public class RideOn extends JavaPlugin implements Listener {
                 }
                 rs2.close();
                 prepStmt2.close();
-    
+
                 // 無効中のユーザーでなければ
                 if(disableRideOnId == null && denyRideOnId == null) {
                     // クリックされた人に乗車
-                    target.addPassenger(clicker);
+                	List<Entity> entityList = target.getPassengers();
+                	Entity lastEntity = null;
+                    for (Entity e : entityList) {
+                    	Bukkit.getLogger().info("Entity:" + e.getName());
+                    	if(e instanceof Player && clicker.getUniqueId() != e.getUniqueId()) {
+                        	lastEntity = e;
+                    	}
+                    }
+                    if(lastEntity != null) {
+                    	lastEntity.addPassenger(clicker);
+                    }else {
+                    	target.addPassenger(clicker);
+                    }
                 }
             }
         } catch (SQLException e) {
@@ -114,29 +128,43 @@ public class RideOn extends JavaPlugin implements Listener {
             Bukkit.getLogger().info(e.getMessage());
         }
     }
-    
+
     // プレイヤーがブロックやアイテムを右クリック(左クリック)したとき
     @EventHandler
     public void onPlayerInteract(PlayerInteractEvent event) {
-        Player target = event.getPlayer();
-        if (
-                (
-                    event.getAction().equals(Action.LEFT_CLICK_AIR) || 
-                    event.getAction().equals(Action.LEFT_CLICK_BLOCK)   // 左で空気かブロックをクリックした場合
-                ) && 
-                target.isSneaking() &&                                  // 中腰（Shiftキーを押している）状態
-                target.getPassengers().get(0) != null &&                // クリックした人に乗車している
-                target.getPassengers().get(0) instanceof Player
+
+    	if (!event.getAction().equals(Action.LEFT_CLICK_AIR) &&
+            !event.getAction().equals(Action.LEFT_CLICK_BLOCK)
         ) {
-            Player passenger = (Player)target.getPassengers().get(0);
-            Vector vec = target.getLocation().getDirection();
-            vec = vec.normalize().multiply(1.0f);
-            passenger.leaveVehicle();
-            passenger.setVelocity(vec);
-            passenger.getWorld().playSound(passenger.getLocation(), Sound.ENTITY_ARROW_SHOOT, 1.0f, -3.0f);
+        	// 空気を左クリックしていない且つブロックを左クリックしていない場合
+        	return;
+        }
+
+        Player clicker = event.getPlayer();
+        if(clicker ==null || !clicker.isSneaking()) {
+        	// クリッカーが取得できない。もしくは、中腰（Shiftキーを押している）していない状態
+        	return;
+        }
+
+    	List<Entity> entityList = clicker.getPassengers();
+    	Player passenger = null;
+        for (Entity e : entityList) {
+        	Bukkit.getLogger().info("onPlayerInteract Entity:" + e.getName());
+            if (e instanceof Player) {
+            	Bukkit.getLogger().info("onPlayerInteract Player:" + e.getName());
+            	passenger = (Player)e;
+            }
+        }
+
+        if(passenger != null) {
+        	Vector vec = clicker.getLocation().getDirection();
+        	vec = vec.normalize().multiply(1.0f);
+        	passenger.leaveVehicle();
+        	passenger.setVelocity(vec);
+        	passenger.getWorld().playSound(passenger.getLocation(), Sound.ENTITY_ARROW_SHOOT, 1.0f, -3.0f);
         }
     }
-    
+
     /**
      * コマンド実行時に呼び出されるメソッド
      * @see org.bukkit.plugin.java.JavaPlugin#onCommand(org.bukkit.command.CommandSender,
@@ -160,7 +188,7 @@ public class RideOn extends JavaPlugin implements Listener {
             }
             rs.close();
             prepStmt1.close();
-              
+
             if(disableRideOnId == null) {
               PreparedStatement prepStmt2 = con.prepareStatement("insert into disablerideon (uuid,playername) values(?,?)");
               prepStmt2.setString(1, uuid);
@@ -214,7 +242,7 @@ public class RideOn extends JavaPlugin implements Listener {
             }
             rs.close();
             prepStmt1.close();
-              
+
             if(denyRideOnId == null) {
               PreparedStatement prepStmt2 = con.prepareStatement("insert into denyrideon (uuid,playername,owner_uuid,owner_playername) values(?,?,?,?)");
               prepStmt2.setString(1, uuid);

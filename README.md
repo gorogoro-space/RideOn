@@ -14,7 +14,7 @@ Please put it only in the plugin folder of spigot or bukkit.
 # Useage
 ```
 /rideon - Turn on / off shoulder function.(肩車機能をON/OFFします。)
-/rideondeny <playername> - add deny player.指定したプレイヤーを肩車拒否します。
+/rideondeny <playername> - add / delete deny player.指定したプレイヤーを肩車拒否に追加/削除します。
 ```
 
 # Disclaimer

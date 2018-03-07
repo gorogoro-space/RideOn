@@ -110,7 +110,6 @@ public class RideOn extends JavaPlugin implements Listener {
                 	List<Entity> entityList = target.getPassengers();
                 	Entity lastEntity = null;
                     for (Entity e : entityList) {
-                    	Bukkit.getLogger().info("Entity:" + e.getName());
                     	if(e instanceof Player && clicker.getUniqueId() != e.getUniqueId()) {
                         	lastEntity = e;
                     	}
@@ -149,9 +148,7 @@ public class RideOn extends JavaPlugin implements Listener {
     	List<Entity> entityList = clicker.getPassengers();
     	Player passenger = null;
         for (Entity e : entityList) {
-        	Bukkit.getLogger().info("onPlayerInteract Entity:" + e.getName());
             if (e instanceof Player) {
-            	Bukkit.getLogger().info("onPlayerInteract Player:" + e.getName());
             	passenger = (Player)e;
             }
         }

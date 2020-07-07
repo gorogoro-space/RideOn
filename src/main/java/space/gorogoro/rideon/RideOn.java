@@ -21,6 +21,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.util.Vector;
 
@@ -159,6 +160,17 @@ public class RideOn extends JavaPlugin implements Listener {
         	passenger.leaveVehicle();
         	passenger.setVelocity(vec);
         	passenger.getWorld().playSound(passenger.getLocation(), Sound.ENTITY_ARROW_SHOOT, 1.0f, -3.0f);
+        }
+    }
+
+    // 乗っているプレイヤーがログアウトしたとき
+    @EventHandler
+    public void onPlayerQuit(PlayerQuitEvent event) {
+    	Player rider = event.getPlayer();
+    	Entity ridingEntity = rider.getVehicle();
+    	if (ridingEntity instanceof Player) {
+    		rider.eject();
+    		rider.leaveVehicle();
         }
     }
 

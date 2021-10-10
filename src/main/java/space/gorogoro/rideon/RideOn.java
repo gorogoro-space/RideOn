@@ -35,7 +35,7 @@ public class RideOn extends JavaPlugin implements Listener {
             Bukkit.getLogger().info("The Plugin Has Been Enabled!");
 
             // 設定ファイルが無ければ作成します
-            File configFile = new File(this.getDataFolder() + "/config.yml");
+            File configFile = new File(getDataFolder(),"config.yml");
             if(!configFile.exists()){
                 saveDefaultConfig();
             }
@@ -44,7 +44,7 @@ public class RideOn extends JavaPlugin implements Listener {
             Class.forName("org.sqlite.JDBC");
 
             // データベースに接続する なければ作成される
-            con = DriverManager.getConnection("jdbc:sqlite:" + this.getDataFolder() + "/rideon.db");
+            con = DriverManager.getConnection("jdbc:sqlite:" + getDataFolder() + File.separator +  "/rideon.db");
             con.setAutoCommit(false);      // auto commit無効
 
             // Statementオブジェクト作成
@@ -66,6 +66,7 @@ public class RideOn extends JavaPlugin implements Listener {
               + "owner_playername string not null);"
             );
             stmt.executeUpdate("create index if not exists denyrideon_idx on denyrideon (uuid,owner_uuid);");
+            con.commit();
             stmt.close();
         } catch (SQLException e) {
             Bukkit.getLogger().info(e.getMessage());

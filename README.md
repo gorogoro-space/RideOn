@@ -2,7 +2,7 @@
 [![Paper 1.21.11](https://img.shields.io/badge/Paper-1.21.11-brightgreen.svg)](https://fill-ui.papermc.io/projects/paper/version/1.21.11)
 [![GitHub release](https://img.shields.io/github/release/gorogoro-space/RideOn.svg)](https://github.com/gorogoro-space/RideOn/releases)
 [![contributions welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg?style=flat)](https://github.com/gorogoro-space/RideOn/issues)
-[![License: LGPL v3](https://img.shields.io/badge/License-LGPL%20v3-blue.svg)](https://github.com/gorogoro-space/RideOn/blob/master/LICENSE)
+[![License: LGPL v3](https://img.shields.io/badge/License-LGPL%20v3-blue.svg)](https://github.com/gorogoro-space/RideOn/blob/main/LICENSE)
 
 RideOn plugin for minecraft.
 

@@ -80,7 +80,7 @@ IntelliJ IDEA 上で正しくプラグイン（JARファイル）を生成する
 ### 📦 生成されたファイルの場所
 ビルドが成功すると、プロジェクトのルート直下に `build/libs` フォルダが作成（または更新）され、その中に中身の詰まった正しい JAR ファイルが生成されます。
 
-* **生成先:** `build/libs/RideOn-<version>.jar`(例: `RideOn-2.2.jar`。バージョンは `gradle.properties` の `version`)
+* **生成先:** `build/libs/RideOn-<version>.jar`(例: `RideOn-2.3.jar`。バージョンは `gradle.properties` の `version`)
 
 この JAR ファイルを Minecraft サーバーの `plugins` フォルダに配置してください。
 

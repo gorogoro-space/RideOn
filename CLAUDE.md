@@ -62,8 +62,10 @@
 - **ログアウト時**(`PlayerQuitEvent`): ログアウトした人がプレイヤーに乗っていれば、その人の乗客を降ろし、本人も降ろす
 - **`/rideon`**: 自分への肩車の 無効 / 有効 を切り替える。無効にすると `disablerideon` に追加して「肩車を無効にしました。」、有効に戻すと削除して「肩車を有効にしました。」を出す
 - **`/rideonself`**: 自分が他の人の頭に乗る機能の ON / OFF を切り替える(初期状態は ON)。OFF にすると `self-off-players` に追加して「他の人に乗らないようにしました。」、ON に戻すと削除して「他の人に乗れるようにしました。」を出す。他の人が自分に乗れるかどうか(`/rideon`)には影響しない
-- **`/rideondeny <playername>`**: 指定したプレイヤーを自分に乗れないようにする / 解除する。引数が 1 つでなければ「プレイヤー名を指定してください。」。名前は `Bukkit.getOfflinePlayers()` から大文字・小文字を区別して探し、見つからなければ「[名前] not found.」「ターゲット未確認」。追加すると「<名前>をブラックリストに追加しました。」、解除すると「<名前>をブラックリストから削除しました。」
-  - 相手の UUID と名前は `OfflinePlayer` の `getUniqueId()`・`getName()` から取るので、相手がオフラインでも追加・解除できる(2.2 までは `getPlayer()` から取っていて、オフラインだと例外になっていた)。名前が null の記録があっても例外にならないよう、`args[0].equals(player.getName())` で比べる
+- **`/rideondeny <playername>`**: 指定したプレイヤーを自分に乗れないようにする / 解除する。引数が 1 つでなければ「プレイヤー名を指定してください。」。名前は大文字・小文字を区別せず、オンライン(`getPlayerExact`)→ players.yml の記録 → Paper の usercache(`getOfflinePlayerIfCached`)の順に探す(`findPlayer`)。どれにも無ければ「[名前] not found.」「ターゲット未確認」。追加すると「<名前>をブラックリストに追加しました。」、解除すると「<名前>をブラックリストから削除しました。」(名前は入力したまま)
+  - **`Bukkit.getOfflinePlayers()` は使わない。** 全員を順に調べ、名前を取るたびにプレイヤーデータをディスクから読むことがあり、存在しない名前で TPS が 19 を切った(2.2.1 まで)。`Bukkit.getOfflinePlayer(UUID)` の `getName()` もディスクを読むことがあるので、記録から見つけた人の名前は players.yml の名前を使う
+  - オフラインの人も追加・解除できる。players.yml にも usercache(既定で最近の約 1000 人)にもいない人は見つからない
+- **ログイン時**(`PlayerJoinEvent`): その人の UUID・今の名前・ログイン日時をメモリの記録に反映し、players.yml の書き込みを頼む。同じ名前が複数あれば、最後にログインした人を採る
 - 共通: 権限ノードは使っていない(plugin.yml に permission の定義はない)。コマンドはプレイヤーのみで、コンソールから実行しても何も起きない
 - 例外は `Bukkit.getLogger().info(e.getMessage())` でメッセージだけをログに出す
 
@@ -76,6 +78,11 @@
 - `plugins/RideOn/config.yml` — 無ければ jar 内の空の config.yml を書き出す。`self-off-players`(`/rideonself` で OFF の人)を UUID のリストで保存する
   - `onEnable` で一度だけ読み込み、メモリ上の `Set<UUID>` で判定する
   - `getConfig()` の更新と YAML 文字列への変換はメインスレッドで行い、ファイルへの書き込みだけを専用スレッド `RideOn-Save`(1 本)で行う。書き込み待ちが残っている間の変更は、最新の内容で 1 回にまとめて書き込む。停止時は書き込み待ちが終わるまで最大 10 秒待つ
+- `plugins/RideOn/players.yml` — ログインした人の記録(`players.<UUID>.name`・`players.<UUID>.last-login`)。`/rideondeny` で名前から探すために使う
+  - `onEnable` で一度だけ読み込み、`Map<UUID, PlayerRecord>` と、小文字の名前 → UUID の索引をメモリに持つ。コマンドではメモリだけを見る
+  - メインスレッドでは記録の複製を作るだけにし、YAML への変換とファイルの書き込みは `RideOn-Save` で行う(まとめ方・停止時の待ち方は config.yml と同じ)
+  - rideon.db に入れないのは、既存の接続(auto commit 無効)が右クリック時の select のあと commit せず読み取りロックを残すため、別の接続から書き込めないから
+  - 記録を始めた版を入れてから、まだログインしていない人は記録に無い(usercache で補う)
 
 ## 過去にハマった点(他プロジェクトでの経験)
 
@@ -85,7 +92,7 @@
 
 ## ファイル構成
 
-- `src/main/java/space/gorogoro/rideon/RideOn.java` — メインクラス。イベント、コマンド処理、DB と config.yml の読み書きをすべて持つ
+- `src/main/java/space/gorogoro/rideon/RideOn.java` — メインクラス。イベント、コマンド処理、DB と config.yml・players.yml の読み書きをすべて持つ
 - `src/main/resources/plugin.yml` — プラグイン定義、コマンド定義(`rideon`、`rideonself`、`rideondeny`)
 - `src/main/resources/config.yml` — 空(項目なし。`self-off-players` は実行時に書き込まれる)
 - `build.gradle.kts` / `settings.gradle.kts` / `gradle.properties` — Gradle の設定(バージョンは `gradle.properties`)

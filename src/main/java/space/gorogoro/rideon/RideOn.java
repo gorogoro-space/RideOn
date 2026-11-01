@@ -10,8 +10,11 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
@@ -25,6 +28,8 @@ import org.bukkit.OfflinePlayer;
 import org.bukkit.Sound;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
+import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -32,6 +37,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.util.Vector;
@@ -48,6 +54,15 @@ public class RideOn extends JavaPlugin implements Listener {
     // 書き込み待ちの config.yml の内容(null なら書き込み待ちなし)
     private final AtomicReference<String> pendingConfigYaml = new AtomicReference<>();
 
+    // ログインした人の記録(UUID → 名前と最後のログイン日時)。players.yml に保存する
+    private final Map<UUID, PlayerRecord> players = new HashMap<>();
+    // 小文字にした名前 → UUID(同じ名前が複数あれば、最後にログインした人)
+    private final Map<String, UUID> playersByName = new HashMap<>();
+    // 書き込み待ちの players.yml の内容(null なら書き込み待ちなし)。YAML への変換は専用スレッドで行う
+    private final AtomicReference<Map<UUID, PlayerRecord>> pendingPlayers = new AtomicReference<>();
+
+    private record PlayerRecord(String name, long lastLogin) {}
+
     public void onEnable() {
         try{
             getServer().getPluginManager().registerEvents(this, this);
@@ -61,6 +76,9 @@ public class RideOn extends JavaPlugin implements Listener {
 
             // 自分が他の人に乗らないようにしている人を読み込む
             loadUuidSet("self-off-players", selfOffPlayers);
+
+            // ログインした人の記録を読み込む(起動時に一度だけ)
+            loadPlayers();
 
             // JDBCドライバーの指定
             Class.forName("org.sqlite.JDBC");
@@ -191,6 +209,14 @@ public class RideOn extends JavaPlugin implements Listener {
         }
     }
 
+    // ログインしたとき、/rideondeny で探せるように UUID と今の名前を記録する
+    @EventHandler
+    public void onPlayerJoin(PlayerJoinEvent event) {
+        Player player = event.getPlayer();
+        recordPlayer(player.getUniqueId(), player.getName(), System.currentTimeMillis());
+        requestSavePlayers();
+    }
+
     // 乗っているプレイヤーがログアウトしたとき
     @EventHandler
     public void onPlayerQuit(PlayerQuitEvent event) {
@@ -261,14 +287,8 @@ public class RideOn extends JavaPlugin implements Listener {
               return true;
             }
 
-            // ターゲットプレイヤーを取得する
-            OfflinePlayer tp = null;
-            for ( OfflinePlayer player : Bukkit.getOfflinePlayers() ) {
-              if ( args[0].equals(player.getName()) ) {
-                tp = player;
-                break;
-              }
-            }
+            // ターゲットプレイヤーを取得する(ディスクを読まないよう、オンライン → players.yml → usercache の順に探す)
+            String[] tp = findPlayer(args[0]);
             if(tp == null){
               sp.sendMessage("["+args[0]+"] not found.");
               sp.sendMessage("ターゲット未確認");
@@ -277,9 +297,8 @@ public class RideOn extends JavaPlugin implements Listener {
 
             // 実在チェック
             Integer denyRideOnId = null;
-            // 相手がオフラインでも取れるよう、OfflinePlayer から取る
-            String uuid = tp.getUniqueId().toString();
-            String playername = tp.getName();
+            String uuid = tp[0];
+            String playername = tp[1];
             String ownerUuid = sp.getPlayer().getUniqueId().toString();
             String ownerPlayername = sp.getPlayer().getName();
             PreparedStatement prepStmt1 = con.prepareStatement("select id from denyrideon where uuid=? and owner_uuid=?");
@@ -347,6 +366,97 @@ public void onDisable(){
   }
   Bukkit.getLogger().info("The Plugin Has Been Disabled!");
 }
+
+  /**
+   * 名前からプレイヤーを探す(大文字・小文字は区別しない)。ディスクは読まない
+   * オンライン → players.yml の記録 → Paper の usercache の順に探す
+   * @return { UUID, 名前 }。見つからなければ null
+   */
+  private String[] findPlayer(String name) {
+    Player online = Bukkit.getPlayerExact(name);
+    if (online != null) {
+      return new String[] { online.getUniqueId().toString(), online.getName() };
+    }
+    UUID uuid = playersByName.get(name.toLowerCase(Locale.ROOT));
+    if (uuid != null) {
+      return new String[] { uuid.toString(), players.get(uuid).name() };
+    }
+    OfflinePlayer cached = Bukkit.getOfflinePlayerIfCached(name);
+    if (cached != null && cached.getName() != null) {
+      return new String[] { cached.getUniqueId().toString(), cached.getName() };
+    }
+    return null;
+  }
+
+  /**
+   * ログインした人の記録をメモリへ反映する
+   */
+  private void recordPlayer(UUID uuid, String name, long lastLogin) {
+    PlayerRecord old = players.put(uuid, new PlayerRecord(name, lastLogin));
+    // 名前が変わっていれば、前の名前の索引を消す(別の人が同じ名前で上書きしていなければ)
+    if (old != null) {
+      playersByName.remove(old.name().toLowerCase(Locale.ROOT), uuid);
+    }
+    String key = name.toLowerCase(Locale.ROOT);
+    UUID current = playersByName.get(key);
+    if (current == null || current.equals(uuid) || players.get(current).lastLogin() <= lastLogin) {
+      playersByName.put(key, uuid);
+    }
+  }
+
+  /**
+   * players.yml を読み込む(起動時に一度だけ)
+   */
+  private void loadPlayers() {
+    players.clear();
+    playersByName.clear();
+    File file = new File(getDataFolder(), "players.yml");
+    if (!file.exists()) {
+      return;
+    }
+    ConfigurationSection section = YamlConfiguration.loadConfiguration(file).getConfigurationSection("players");
+    if (section == null) {
+      return;
+    }
+    for (String key : section.getKeys(false)) {
+      String name = section.getString(key + ".name");
+      if (name == null) {
+        continue;
+      }
+      try {
+        recordPlayer(UUID.fromString(key), name, section.getLong(key + ".last-login"));
+      } catch (IllegalArgumentException ignored) {
+      }
+    }
+  }
+
+  /**
+   * players.yml を専用スレッドで書き込む
+   * メインスレッドでは記録の複製を作るだけにし、YAML への変換とファイルの書き込みは専用スレッドで行う
+   * 書き込み待ちが残っている間に呼ばれた場合は、最新の内容で 1 回にまとめて書き込む
+   */
+  private void requestSavePlayers() {
+    if (pendingPlayers.getAndSet(new HashMap<>(players)) != null) {
+      return;
+    }
+    File dataFolder = getDataFolder();
+    saveExecutor.execute(() -> {
+      Map<UUID, PlayerRecord> snapshot = pendingPlayers.getAndSet(null);
+      YamlConfiguration yaml = new YamlConfiguration();
+      snapshot.entrySet().stream()
+          .sorted(Map.Entry.comparingByKey())
+          .forEach(e -> {
+            yaml.set("players." + e.getKey() + ".name", e.getValue().name());
+            yaml.set("players." + e.getKey() + ".last-login", e.getValue().lastLogin());
+          });
+      try {
+        dataFolder.mkdirs();
+        Files.writeString(new File(dataFolder, "players.yml").toPath(), yaml.saveToString(), StandardCharsets.UTF_8);
+      } catch (IOException e) {
+        getLogger().severe("players.yml の書き込みに失敗しました: " + e.getMessage());
+      }
+    });
+  }
 
   /**
    * config.yml から UUID のリストを読み込む

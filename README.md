@@ -34,6 +34,8 @@ Please place the .jar file in the Paper plugins folder.
 - `/rideon` は、実行するたびに自分への肩車の 無効 / 有効 を切り替えます
 - `/rideonself` は、実行するたびに「自分が他の人の頭に乗る」の OFF / ON を切り替えます。OFF の間は、他のプレイヤーを右クリックしても乗りません(他の人が自分に乗れるかどうかは `/rideon` で決まります)。設定はログアウトやサーバーの再起動をしても残ります
 - `/rideondeny <playername>` は、指定したプレイヤーが自分に乗れないようにします。もう一度実行すると解除します
+  - 名前の大文字・小文字は区別しません。オフラインのプレイヤーも指定できます
+  - 見つかるのは、オンラインの人、RideOn を入れてからログインしたことのある人、サーバーが最近のプレイヤーとして覚えている人(Paper の usercache。既定で約 1000 人)です
 
 # Data
 `plugins/RideOn/rideon.db`(SQLite)に以下を保存します。
@@ -43,7 +45,9 @@ Please place the .jar file in the Paper plugins folder.
 `plugins/RideOn/config.yml` に以下を保存します。
 - `self-off-players` — `/rideonself` で、自分が他の人に乗らないようにしているプレイヤーの UUID
 
-書き込みは専用スレッドで、`/rideonself` を実行したときに行います。
+`plugins/RideOn/players.yml` に、`/rideondeny` で名前から探すために、ログインしたプレイヤーの UUID・名前・最後のログイン日時を保存します。
+
+config.yml と players.yml の書き込みは専用スレッドで、`/rideonself` を実行したときとログインしたときに行います。
 
 # Disclaimer
 Do not assume any responsibility by use. Please use it at your own risk.

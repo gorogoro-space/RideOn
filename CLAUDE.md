@@ -80,6 +80,7 @@
   - `getConfig()` の更新と YAML 文字列への変換はメインスレッドで行い、ファイルへの書き込みだけを専用スレッド `RideOn-Save`(1 本)で行う。書き込み待ちが残っている間の変更は、最新の内容で 1 回にまとめて書き込む。停止時は書き込み待ちが終わるまで最大 10 秒待つ
 - `plugins/RideOn/players.yml` — ログインした人の記録(`players.<UUID>.name`・`players.<UUID>.last-login`)。`/rideondeny` で名前から探すために使う
   - `onEnable` で一度だけ読み込み、`Map<UUID, PlayerRecord>` と、小文字の名前 → UUID の索引をメモリに持つ。コマンドではメモリだけを見る
+  - `onEnable` の時点でオンラインの人(PlugManX などでの再読み込み)も、その時刻をログイン日時として記録する
   - メインスレッドでは記録の複製を作るだけにし、YAML への変換とファイルの書き込みは `RideOn-Save` で行う(まとめ方・停止時の待ち方は config.yml と同じ)
   - rideon.db に入れないのは、既存の接続(auto commit 無効)が右クリック時の select のあと commit せず読み取りロックを残すため、別の接続から書き込めないから
   - 記録を始めた版を入れてから、まだログインしていない人は記録に無い(usercache で補う)

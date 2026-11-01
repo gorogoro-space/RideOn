@@ -79,6 +79,14 @@ public class RideOn extends JavaPlugin implements Listener {
 
             // ログインした人の記録を読み込む(起動時に一度だけ)
             loadPlayers();
+            // 再読み込み(PlugManX など)のときにすでにオンラインの人も記録する
+            if (!Bukkit.getOnlinePlayers().isEmpty()) {
+                long now = System.currentTimeMillis();
+                for (Player player : Bukkit.getOnlinePlayers()) {
+                    recordPlayer(player.getUniqueId(), player.getName(), now);
+                }
+                requestSavePlayers();
+            }
 
             // JDBCドライバーの指定
             Class.forName("org.sqlite.JDBC");

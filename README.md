@@ -22,14 +22,17 @@ Please place the .jar file in the Paper plugins folder.
 - 乗せている人がスニーク(Shift)しながら左クリックすると、乗っている人を見ている方向へ投げ降ろします(矢を放つ音が鳴ります)
 - 乗っている人がログアウトすると、降ろします
 - `/rideon` で肩車を無効にしている人や、`/rideondeny` で自分を拒否している人には乗れません
+- `/rideonself` で、自分が他の人に乗らないようにできます(うっかり右クリックして乗ってしまうのを防げます)
 
 # Usage
 ```
 /rideon                - Turn on / off shoulder function.(肩車機能をON/OFFします。)
+/rideonself            - Turn on / off riding on others.(自分が他の人に乗る機能をON/OFFします。)
 /rideondeny <playername> - add / delete deny player.(指定したプレイヤーを肩車拒否に追加/削除します。)
 ```
-- どちらのコマンドも権限不要で、全員が使えます(プレイヤーのみ。コンソールからは使えません)
+- どのコマンドも権限不要で、全員が使えます(プレイヤーのみ。コンソールからは使えません)
 - `/rideon` は、実行するたびに自分への肩車の 無効 / 有効 を切り替えます
+- `/rideonself` は、実行するたびに「自分が他の人の頭に乗る」の OFF / ON を切り替えます。OFF の間は、他のプレイヤーを右クリックしても乗りません(他の人が自分に乗れるかどうかは `/rideon` で決まります)。設定はログアウトやサーバーの再起動をしても残ります
 - `/rideondeny <playername>` は、指定したプレイヤーが自分に乗れないようにします。もう一度実行すると解除します
 
 # Data
@@ -37,7 +40,10 @@ Please place the .jar file in the Paper plugins folder.
 - `disablerideon` — `/rideon` で肩車を無効にしているプレイヤー
 - `denyrideon` — `/rideondeny` で拒否したプレイヤーと、拒否した人の組み合わせ
 
-`plugins/RideOn/config.yml` も作られますが、今は設定項目はありません。
+`plugins/RideOn/config.yml` に以下を保存します。
+- `self-off-players` — `/rideonself` で、自分が他の人に乗らないようにしているプレイヤーの UUID
+
+書き込みは専用スレッドで、`/rideonself` を実行したときに行います。
 
 # Disclaimer
 Do not assume any responsibility by use. Please use it at your own risk.

@@ -1,13 +1,24 @@
 package space.gorogoro.rideon;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
@@ -29,6 +40,14 @@ public class RideOn extends JavaPlugin implements Listener {
 
     private Connection con;
 
+    // /rideonself で、自分が他の人に乗らないようにしている人
+    private final Set<UUID> selfOffPlayers = new HashSet<>();
+
+    // config.yml の書き込み専用スレッド
+    private final ExecutorService saveExecutor = Executors.newSingleThreadExecutor(r -> new Thread(r, "RideOn-Save"));
+    // 書き込み待ちの config.yml の内容(null なら書き込み待ちなし)
+    private final AtomicReference<String> pendingConfigYaml = new AtomicReference<>();
+
     public void onEnable() {
         try{
             getServer().getPluginManager().registerEvents(this, this);
@@ -39,6 +58,9 @@ public class RideOn extends JavaPlugin implements Listener {
             if(!configFile.exists()){
                 saveDefaultConfig();
             }
+
+            // 自分が他の人に乗らないようにしている人を読み込む
+            loadUuidSet("self-off-players", selfOffPlayers);
 
             // JDBCドライバーの指定
             Class.forName("org.sqlite.JDBC");
@@ -81,6 +103,11 @@ public class RideOn extends JavaPlugin implements Listener {
         try {
             Player clicker = event.getPlayer();
             if (event.getRightClicked() instanceof Player) {
+                // /rideonself で自分が乗らないようにしている人は乗らない
+                if (selfOffPlayers.contains(clicker.getUniqueId())) {
+                    return;
+                }
+
                 Player target = (Player) event.getRightClicked();
 
                 // 無効化情報を取得
@@ -217,6 +244,17 @@ public class RideOn extends JavaPlugin implements Listener {
               prepStmt3.close();
               sp.sendMessage("肩車を有効にしました。");
             }
+          }else if ( command.getName().equals("rideonself") ) {
+            // 自分が他の人に乗る機能の ON / OFF を切り替える
+            UUID uuid = sp.getUniqueId();
+            if (selfOffPlayers.remove(uuid)) {
+              sp.sendMessage("他の人に乗れるようにしました。");
+            } else {
+              selfOffPlayers.add(uuid);
+              sp.sendMessage("他の人に乗らないようにしました。");
+            }
+            saveUuidSet("self-off-players", selfOffPlayers);
+            requestSaveConfig();
           }else if ( command.getName().equals("rideondeny") ) {
             if(args.length != 1){
               sp.sendMessage("プレイヤー名を指定してください。");
@@ -296,7 +334,60 @@ public void onDisable(){
   } catch (Exception e){
       Bukkit.getLogger().info(e.getMessage());
   }
+
+  // config.yml の書き込み待ちがすべて終わるまで待つ
+  saveExecutor.shutdown();
+  try {
+    if (!saveExecutor.awaitTermination(10, TimeUnit.SECONDS)) {
+      getLogger().severe("config.yml の書き込みが時間内に終わりませんでした。");
+    }
+  } catch (InterruptedException e) {
+    Thread.currentThread().interrupt();
+  }
   Bukkit.getLogger().info("The Plugin Has Been Disabled!");
 }
+
+  /**
+   * config.yml から UUID のリストを読み込む
+   */
+  private void loadUuidSet(String path, Set<UUID> set) {
+    set.clear();
+    for (String s : getConfig().getStringList(path)) {
+      try {
+        set.add(UUID.fromString(s));
+      } catch (IllegalArgumentException ignored) {
+      }
+    }
+  }
+
+  /**
+   * UUID のリストを config.yml の内容(メモリ上)へ反映する
+   */
+  private void saveUuidSet(String path, Set<UUID> set) {
+    List<String> list = set.stream().map(UUID::toString).sorted().collect(Collectors.toList());
+    getConfig().set(path, list);
+  }
+
+  /**
+   * 現在の config.yml の内容を専用スレッドで書き込む
+   * getConfig() へのアクセスはメインスレッドで行い、ファイルの書き込みだけを専用スレッドに任せる
+   * 書き込み待ちが残っている間に呼ばれた場合は、最新の内容で 1 回にまとめて書き込む
+   */
+  private void requestSaveConfig() {
+    String yaml = getConfig().saveToString();
+    if (pendingConfigYaml.getAndSet(yaml) != null) {
+      return;
+    }
+    File dataFolder = getDataFolder();
+    saveExecutor.execute(() -> {
+      String latestYaml = pendingConfigYaml.getAndSet(null);
+      try {
+        dataFolder.mkdirs();
+        Files.writeString(new File(dataFolder, "config.yml").toPath(), latestYaml, StandardCharsets.UTF_8);
+      } catch (IOException e) {
+        getLogger().severe("config.yml の書き込みに失敗しました: " + e.getMessage());
+      }
+    });
+  }
 
 }

@@ -43,6 +43,7 @@
 - 定期タスクは最小限にし、追加するときは頻度と理由を設計案に書く
 
 ### データの保存
+- 新しく保存するデータは、`self-off-players` と同じく、メモリ上で判定し、ファイルへの書き込みだけを専用スレッドで行う
 - プラグインフォルダ以外には何も書き込まない
 - SQL は `PreparedStatement` のプレースホルダーで値を渡す。文字列の連結で組み立てない
 
@@ -55,10 +56,12 @@
 
 - **右クリックで乗る**(`PlayerInteractEntityEvent`): プレイヤーを右クリックすると、その人の乗客の中のプレイヤー(自分以外。複数いれば最後のもの)の上に、いなければその人の上に乗る。次のときは乗らない
   - 右クリックされた人が `/rideon` で肩車を無効にしている(`disablerideon` に UUID がある)
+  - 右クリックした人が `/rideonself` で自分が乗らないようにしている(`self-off-players` に UUID がある。DB を引く前に、メモリ上の集合で判定して抜ける)
   - 右クリックされた人が `/rideondeny` で右クリックした人を拒否している(`denyrideon` に組み合わせがある)
 - **投げ降ろし**(`PlayerInteractEvent`): スニーク中に空気かブロックを左クリックすると、乗客のプレイヤー(複数いれば最後のもの)を降ろし、見ている方向へ速さ 1.0 で飛ばし、`ENTITY_ARROW_SHOOT` の音を鳴らす
 - **ログアウト時**(`PlayerQuitEvent`): ログアウトした人がプレイヤーに乗っていれば、その人の乗客を降ろし、本人も降ろす
 - **`/rideon`**: 自分への肩車の 無効 / 有効 を切り替える。無効にすると `disablerideon` に追加して「肩車を無効にしました。」、有効に戻すと削除して「肩車を有効にしました。」を出す
+- **`/rideonself`**: 自分が他の人の頭に乗る機能の ON / OFF を切り替える(初期状態は ON)。OFF にすると `self-off-players` に追加して「他の人に乗らないようにしました。」、ON に戻すと削除して「他の人に乗れるようにしました。」を出す。他の人が自分に乗れるかどうか(`/rideon`)には影響しない
 - **`/rideondeny <playername>`**: 指定したプレイヤーを自分に乗れないようにする / 解除する。引数が 1 つでなければ「プレイヤー名を指定してください。」。名前は `Bukkit.getOfflinePlayers()` から大文字・小文字を区別して探し、見つからなければ「[名前] not found.」「ターゲット未確認」。追加すると「<名前>をブラックリストに追加しました。」、解除すると「<名前>をブラックリストから削除しました。」
   - UUID と名前を `tp.getPlayer()` から取っているため、相手がオフラインだと例外になり、何も表示されずに終わる(今の実装の動作)
 - 共通: 権限ノードは使っていない(plugin.yml に permission の定義はない)。コマンドはプレイヤーのみで、コンソールから実行しても何も起きない
@@ -69,8 +72,10 @@
 - `plugins/RideOn/rideon.db`(SQLite、auto commit 無効で変更ごとに commit)
   - `disablerideon`(`id`、`uuid`、`playername`)— 肩車を無効にしている人
   - `denyrideon`(`id`、`uuid`、`playername`、`owner_uuid`、`owner_playername`)— `owner` が `uuid` の人を拒否
-- `plugins/RideOn/config.yml` — 無ければ jar 内の空の config.yml を書き出す。今は読んでいない
-- 接続は `onEnable` で開き、`onDisable` で閉じる
+- DB の接続は `onEnable` で開き、`onDisable` で閉じる
+- `plugins/RideOn/config.yml` — 無ければ jar 内の空の config.yml を書き出す。`self-off-players`(`/rideonself` で OFF の人)を UUID のリストで保存する
+  - `onEnable` で一度だけ読み込み、メモリ上の `Set<UUID>` で判定する
+  - `getConfig()` の更新と YAML 文字列への変換はメインスレッドで行い、ファイルへの書き込みだけを専用スレッド `RideOn-Save`(1 本)で行う。書き込み待ちが残っている間の変更は、最新の内容で 1 回にまとめて書き込む。停止時は書き込み待ちが終わるまで最大 10 秒待つ
 
 ## 過去にハマった点(他プロジェクトでの経験)
 
@@ -80,7 +85,7 @@
 
 ## ファイル構成
 
-- `src/main/java/space/gorogoro/rideon/RideOn.java` — メインクラス。イベント、コマンド処理、DB の読み書きをすべて持つ
-- `src/main/resources/plugin.yml` — プラグイン定義、コマンド定義(`rideon`、`rideondeny`)
-- `src/main/resources/config.yml` — 空(項目なし)
+- `src/main/java/space/gorogoro/rideon/RideOn.java` — メインクラス。イベント、コマンド処理、DB と config.yml の読み書きをすべて持つ
+- `src/main/resources/plugin.yml` — プラグイン定義、コマンド定義(`rideon`、`rideonself`、`rideondeny`)
+- `src/main/resources/config.yml` — 空(項目なし。`self-off-players` は実行時に書き込まれる)
 - `build.gradle.kts` / `settings.gradle.kts` / `gradle.properties` — Gradle の設定(バージョンは `gradle.properties`)

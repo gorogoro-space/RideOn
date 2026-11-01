@@ -10,5 +10,7 @@ main: space.gorogoro.rideon.RideOn
 commands:
   rideon:
     usage: /<command> 肩車機能をON/OFFします。
+  rideonself:
+    usage: /<command> 自分が他の人に乗る機能をON/OFFします。
   rideondeny:
     usage: /<command> <playername> 指定したプレイヤーを肩車拒否します。

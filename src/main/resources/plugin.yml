@@ -1,6 +1,6 @@
 name: RideOn
-version: 2.1
-api-version: 1.15
+version: '${version}'
+api-version: '1.21.11'
 description: RideOn
 author: kubotan
 website: https://www.gorogoro.space/
@@ -12,4 +12,3 @@ commands:
     usage: /<command> 肩車機能をON/OFFします。
   rideondeny:
     usage: /<command> <playername> 指定したプレイヤーを肩車拒否します。
-    

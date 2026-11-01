@@ -246,7 +246,10 @@ public class RideOn extends JavaPlugin implements Listener {
       try{
         if((sender instanceof Player)) {
           Player sp = (Player)sender;
-          if ( command.getName().equals("rideon") ) {
+          if ( command.getName().equals("rideonhelp")
+              || ( command.getName().equals("rideon") && args.length >= 1 && args[0].equalsIgnoreCase("help") ) ) {
+            sendHelp(sp);
+          }else if ( command.getName().equals("rideon") ) {
             // 実在チェック
             Integer disableRideOnId = null;
             String uuid = sp.getPlayer().getUniqueId().toString();
@@ -374,6 +377,19 @@ public void onDisable(){
   }
   Bukkit.getLogger().info("The Plugin Has Been Disabled!");
 }
+
+  /**
+   * /rideonhelp と /rideon help のヘルプを本人に表示する
+   */
+  private void sendHelp(Player player) {
+    player.sendMessage("--- RideOn ヘルプ ---");
+    player.sendMessage("プレイヤーを右クリック: その人の頭の上に乗る");
+    player.sendMessage("スニークしながら左クリック: 乗っている人を投げ降ろす");
+    player.sendMessage("/rideon: 他の人が自分に乗れるかを切り替える");
+    player.sendMessage("/rideonself: 自分が他の人に乗るかを切り替える");
+    player.sendMessage("/rideondeny <名前>: 指定した人が自分に乗れないようにする(もう一度で解除)");
+    player.sendMessage("/rideonhelp: このヘルプを表示する");
+  }
 
   /**
    * 名前からプレイヤーを探す(大文字・小文字は区別しない)。ディスクは読まない

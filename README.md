@@ -29,6 +29,7 @@ Please place the .jar file in the Paper plugins folder.
 /rideon                - Turn on / off shoulder function.(肩車機能をON/OFFします。)
 /rideonself            - Turn on / off riding on others.(自分が他の人に乗る機能をON/OFFします。)
 /rideondeny <playername> - add / delete deny player.(指定したプレイヤーを肩車拒否に追加/削除します。)
+/rideonhelp            - Show help.(ヘルプを表示します。/rideon help でも表示できます)
 ```
 - どのコマンドも権限不要で、全員が使えます(プレイヤーのみ。コンソールからは使えません)
 - `/rideon` は、実行するたびに自分への肩車の 無効 / 有効 を切り替えます
@@ -36,6 +37,7 @@ Please place the .jar file in the Paper plugins folder.
 - `/rideondeny <playername>` は、指定したプレイヤーが自分に乗れないようにします。もう一度実行すると解除します
   - 名前の大文字・小文字は区別しません。オフラインのプレイヤーも指定できます
   - 見つかるのは、オンラインの人、RideOn を入れてからログインしたことのある人、サーバーが最近のプレイヤーとして覚えている人(Paper の usercache。既定で約 1000 人)です
+- `/rideonhelp` と `/rideon help` は、操作とコマンドの説明を表示します。サーバー標準の `/help RideOn` でもコマンドの一覧と説明を見られます
 
 # Data
 `plugins/RideOn/rideon.db`(SQLite)に以下を保存します。

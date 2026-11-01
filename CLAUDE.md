@@ -60,7 +60,8 @@
   - 右クリックされた人が `/rideondeny` で右クリックした人を拒否している(`denyrideon` に組み合わせがある)
 - **投げ降ろし**(`PlayerInteractEvent`): スニーク中に空気かブロックを左クリックすると、乗客のプレイヤー(複数いれば最後のもの)を降ろし、見ている方向へ速さ 1.0 で飛ばし、`ENTITY_ARROW_SHOOT` の音を鳴らす
 - **ログアウト時**(`PlayerQuitEvent`): ログアウトした人がプレイヤーに乗っていれば、その人の乗客を降ろし、本人も降ろす
-- **`/rideon`**: 自分への肩車の 無効 / 有効 を切り替える。無効にすると `disablerideon` に追加して「肩車を無効にしました。」、有効に戻すと削除して「肩車を有効にしました。」を出す
+- **`/rideonhelp`・`/rideon help`**(`help` は大文字・小文字を区別しない): 本人にヘルプ 7 行(`sendHelp`。色なし)を表示する。`/help RideOn` 用に plugin.yml の各コマンドに同じ文面の `description` を付けている。ヘルプの文面を変えたら両方を直す
+- **`/rideon`**: 自分への肩車の 無効 / 有効 を切り替える(`help` 以外の引数は無視する)。無効にすると `disablerideon` に追加して「肩車を無効にしました。」、有効に戻すと削除して「肩車を有効にしました。」を出す
 - **`/rideonself`**: 自分が他の人の頭に乗る機能の ON / OFF を切り替える(初期状態は ON)。OFF にすると `self-off-players` に追加して「他の人に乗らないようにしました。」、ON に戻すと削除して「他の人に乗れるようにしました。」を出す。他の人が自分に乗れるかどうか(`/rideon`)には影響しない
 - **`/rideondeny <playername>`**: 指定したプレイヤーを自分に乗れないようにする / 解除する。引数が 1 つでなければ「プレイヤー名を指定してください。」。名前は大文字・小文字を区別せず、オンライン(`getPlayerExact`)→ players.yml の記録 → Paper の usercache(`getOfflinePlayerIfCached`)の順に探す(`findPlayer`)。どれにも無ければ「[名前] not found.」「ターゲット未確認」。追加すると「<名前>をブラックリストに追加しました。」、解除すると「<名前>をブラックリストから削除しました。」(名前は入力したまま)
   - **`Bukkit.getOfflinePlayers()` は使わない。** 全員を順に調べ、名前を取るたびにプレイヤーデータをディスクから読むことがあり、存在しない名前で TPS が 19 を切った(2.2.1 まで)。`Bukkit.getOfflinePlayer(UUID)` の `getName()` もディスクを読むことがあるので、記録から見つけた人の名前は players.yml の名前を使う
@@ -94,6 +95,6 @@
 ## ファイル構成
 
 - `src/main/java/space/gorogoro/rideon/RideOn.java` — メインクラス。イベント、コマンド処理、DB と config.yml・players.yml の読み書きをすべて持つ
-- `src/main/resources/plugin.yml` — プラグイン定義、コマンド定義(`rideon`、`rideonself`、`rideondeny`)
+- `src/main/resources/plugin.yml` — プラグイン定義、コマンド定義(`rideon`、`rideonself`、`rideondeny`、`rideonhelp`)
 - `src/main/resources/config.yml` — 空(項目なし。`self-off-players` は実行時に書き込まれる)
 - `build.gradle.kts` / `settings.gradle.kts` / `gradle.properties` — Gradle の設定(バージョンは `gradle.properties`)

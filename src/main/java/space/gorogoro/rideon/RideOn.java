@@ -264,7 +264,7 @@ public class RideOn extends JavaPlugin implements Listener {
             // ターゲットプレイヤーを取得する
             OfflinePlayer tp = null;
             for ( OfflinePlayer player : Bukkit.getOfflinePlayers() ) {
-              if ( player.getName().equals(args[0]) ) {
+              if ( args[0].equals(player.getName()) ) {
                 tp = player;
                 break;
               }
@@ -277,8 +277,9 @@ public class RideOn extends JavaPlugin implements Listener {
 
             // 実在チェック
             Integer denyRideOnId = null;
-            String uuid = tp.getPlayer().getUniqueId().toString();
-            String playername = tp.getPlayer().getName();
+            // 相手がオフラインでも取れるよう、OfflinePlayer から取る
+            String uuid = tp.getUniqueId().toString();
+            String playername = tp.getName();
             String ownerUuid = sp.getPlayer().getUniqueId().toString();
             String ownerPlayername = sp.getPlayer().getName();
             PreparedStatement prepStmt1 = con.prepareStatement("select id from denyrideon where uuid=? and owner_uuid=?");
